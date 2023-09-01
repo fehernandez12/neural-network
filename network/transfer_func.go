@@ -2,7 +2,7 @@ package network
 
 import "math"
 
-type tFunc func(float64) float64
+type TransferFunc func(float64) float64
 
 func HeavySideTransfer(x float64) float64 {
 	if x >= 0.0 {
