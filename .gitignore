@@ -11,7 +11,7 @@
 !/.gitignore
 
 !*.go
-
+!*.zip
 !*.png
 !go.sum
 !go.mod
