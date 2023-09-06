@@ -784,7 +784,7 @@ func main() {
 
 Asumiendo que la red ha sido entrenada previamente, este es el resultado.
 
-![](imgs/predict_screenshot.png)
+![](imgs/predice_screenshot.png)
 
 Y eso es todo. Hemos escrito una red neuronal simple de tres capas desde ceros usando Go.
 
