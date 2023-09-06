@@ -11,10 +11,12 @@
 !/.gitignore
 
 !*.go
+
+!*.png
 !go.sum
 !go.mod
 
-!README.md
+# !README.md
 !LICENSE
 
 # !Makefile
