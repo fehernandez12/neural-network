@@ -44,7 +44,7 @@ Una vez sepamos el valor de `c`, podemos usar el predictor para predecir la sali
 
 Como podemos ver ahora, este método intenta encontrar la respuesta de manera iterativa y mejorarse a sí mismo a medida que avanza, hasta que obtengamos el mejor ajuste. Esto es esencialmente lo que es el [aprendizaje automático](https://medium.com/machine-learning-for-humans/why-machine-learning-matters-6164faf1df12). El programa intenta encontrar respuestas de manera iterativa y _aprende_ a través de sus errores hasta que logra un modelo que puede producir la mejor respuesta. Una vez que tiene el modelo correcto, podemos usar el modelo para adivinar las respuestas correctas. Esto es muy similar a lo que hacemos los humanos (aprendiendo de los errores pasados y corrigiéndonos) pero, ¿cómo exactamente lo hacemos?
 
-## How humans do it
+## ¿Cómo lo hacen los humanos?
 
 Vamos por un momento a un ámbito diferente. Ya hablamos de cómo una máquina puede aprender usando funciones matemáticas. La forma en que los humanos hacen lo mismo (como la investigación a lo largo de los años ha demostrado) es usando algo llamado [neurona](https://www.verywellmind.com/what-is-a-neuron-2794890).
 
