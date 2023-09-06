@@ -40,5 +40,4 @@ func main() {
 		// predict which number it is
 		fmt.Println("prediction:", net.PredictFromImage(*file))
 	}
-
 }

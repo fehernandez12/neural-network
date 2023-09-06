@@ -461,25 +461,21 @@ func (net *Network) Train(inputData []float64, targetData []float64) {
 }
 ```
 
-The forward propagation part is exactly the same as in the `Predict` function. We are not calling `Predict` here though because we still need the other intermediary values.
+La parte de la propagación hacia delante es la misma que en la función `Predict`. No se llama a la función predict, sin embargo, porque aún se necesitan los valores intermedios.
 
-The first thing we need to do after getting the final outputs is to determine the output errors. This is relatively simple, we simply subtract our target data from the final outputs to get `outputErrors`:
+La primera cosa que necesitamos hacer después de obtener las salidas finales es determinar los errores de salida. Esto es relativamente simple, solo restamos nuestros datos objetivo de las salidas finales para obtener `outputErrors`:
 
 ![](imgs/errork1.png)
 
-The hidden errors from the hidden layer is a bit trickier. Remember this?
+Los errores de la capa oculta son un poco más complejos. Para esto, usamos la propagación hacia atrás al aplicar el producto punto en la matriz transpuesta de los pesos de salida y los errores de salida. Esto nos dará `hiddenErrors`.
 
-![](imgs/matrix.png)
-
-We use back propagation to calculate the hidden errors by applying the dot product on the transpose of the output weights and the output errors. This will give us `hiddenErrors`.
-
-Now that we have the errors, we simply use the formula we derived earlier (including the learning rate) for changes to the weights we need to do:
+Ahora que tenemos los errores, sencillamente usamos la fórmula que derivamos anteriormente (incluyendo la tasa de aprendizaje) para los cambios en los pesos que necesitamos hacer:
 
 ![](imgs/l.png)
 
-Remember that we are subtracting this number from the weights. Since this is a negative number, we end up adding this to the weights, which is what we did.
+Recordemos que estamos restando este número de los pesos. Dado que este es un número negativo, resultamos añadiéndolo a los pesos.
 
-To simplify the calculations we use a `sigmoidPrime` function, which is nothing more than doing `sigP = sig(1 - sig)`:
+Para simplificar el cálculo usamos la función `sigmoidPrime`, que no es más que la derivada de la función sigmoide:
 
 ```go
 func sigmoidPrime(m mat.Matrix) mat.Matrix {
@@ -493,67 +489,65 @@ func sigmoidPrime(m mat.Matrix) mat.Matrix {
 }
 ```
 
-Also you might see that we’re doing the dot product of the transpose of the previous output — this is because we’re multiplying across layers.
+También se puede ver que calculamos el producto punto de la respuesta de la salida previa - esto es porque estamos multiplicando a través de las distintas capas de la red.
 
-Finally we do this twice to get the new hidden and output weights for our neural network.
+Finalmente, hacemos esto dos veces para obtener los nuevos pesos ocultos y de salida de nuestra red neuronal.
 
-And that’s a wrap for the `Train` function.
+## Persistencia de los resultados de entrenamiento
 
-## Saving the training results
-
-Before we move on to using the neural network, we’ll see how we can save our training results and load it up for use later. We certainly don’t want to train from scratch each time we want to do the prediction — training the network can often take quite a while.
+Antes de usar nuestra red neuronal, debemos almacenar los resultados del entrenamiento, para poder cargarlo cuando vayamos a realizar predicciones. Ciertamente no queremos entrenar desde cero cada vez que queramos hacer la predicción - entrenar la red puede tomar bastante tiempo.
 
 ```go
-func save(net Network) {
+func (net *Network) Save() {
 	h, err := os.Create("data/hweights.model")
 	defer h.Close()
 	if err == nil {
-		net.hiddenWeights.MarshalBinaryTo(h)
+		net.HiddenWeights.MarshalBinaryTo(h)
 	}
 	o, err := os.Create("data/oweights.model")
 	defer o.Close()
 	if err == nil {
-		net.outputWeights.MarshalBinaryTo(o)
+		net.OutputWeights.MarshalBinaryTo(o)
 	}
 }
 
 // load a neural network from file
-func load(net *Network) {
+func (net *Network) Load() {
 	h, err := os.Open("data/hweights.model")
 	defer h.Close()
 	if err == nil {
-		net.hiddenWeights.Reset()
-		net.hiddenWeights.UnmarshalBinaryFrom(h)
+		net.HiddenWeights.Reset()
+		net.HiddenWeights.UnmarshalBinaryFrom(h)
 	}
 	o, err := os.Open("data/oweights.model")
 	defer o.Close()
 	if err == nil {
-		net.outputWeights.Reset()
-		net.outputWeights.UnmarshalBinaryFrom(o)
+		net.OutputWeights.Reset()
+		net.OutputWeights.UnmarshalBinaryFrom(o)
 	}
 	return
 }
 ```
 
-The `save` and `load` functions are mirror images of each other and we use a convenient function from the Gonum `mat` package to marshal the weight matrices into binary form and unmarshal the same form back to matrices. This is pretty mundane — the only thing of note is that when we unmarshal from the binary data back to the weight matrices, we need to first reset the matrices back to zero-value so that it can be reused.
+Las funciones `Save` y `Load` son básicamente espejo la una de la otra, y usan una función muy conveniente del paquete `mat` de Gonum para convertir las matrices de pesos en forma binaria y deserializar la misma forma de nuevo a matrices. Esto es bastante mundano - lo único que vale la pena mencionar es que cuando deserializamos los datos binarios de nuevo a las matrices de pesos, necesitamos primero restablecer las matrices de nuevo a su valor cero para que puedan ser reutilizadas.
 
-# Using our neural network
+# Usando la red neuronal
 
-We’re finally here — using the neural network!
+Finalmente podemos ejecutar el código.
 
-## MNIST handwriting recognition
+## El dataset MNIST
 
-Let’s start with a ‘hello world’ of machine learning — using the MNIST dataset to recognise handwritten numeric digits. The MNIST dataset is a set of 60,000 scanned handwritten digit images used for training and 10,000 similar images used for testing. It’s a subset of a larger set from NIST (National Institute of Standards and Technology) that has been size-normalised and centered. The images are in black and white and are 28 x 28 pixels. The original dataset are stored in a format is that more difficult to work with, so people have come up with [simpler CSV formatted datasets]([MNIST in CSV](https://pjreddie.com/projects/mnist-in-csv/)), which is what we’re using.
+Comencemos con el uso del dataset MNIST para el reconocimiento de dígitos escritos a mano. El dataset MNIST es un set de 60000 imágenes escaneadas de dígitos escritos a mano utilizado para entrenamiento, y 10000 imágenes similares utilizadas para prueba. Es un subset de un set más grande del NIST (Instituto Nacional de Estándares y Tecnología) que ha sido normalizado en cuanto a tamaño y posición de las imágenes. Las imágenes son en blanco y negro y son de 28px x 28px. El dataset original está guardado en un formato que es más difícil de manipular, entonces quienes lo utilizan han puesto el dataset en formatos más simples, como [CSV](https://pjreddie.com/projects/mnist-in-csv/), como el que utilizaremos para este proyecto.
 
 ![MNIST dataset](imgs/mnist_dataset.png)
 
-In the CSV format every line is an image, and each column except the first represents a pixel. The first column is the label, which is the actual digit that the image is supposed to represent. In other words, this is the target output. Since there are 28 x 28 pixels, this means there are 785 columns in every row.
+En este formato, cada línea representa una imagen, y cada columna excepto la primera representa un pixel. La primera columna es la etiqueta, la cual es el dígito real qye la imagen representa. En otras palabras, esta es la salida objetivo. Ya que hay 28x28 pixeles, esto quiere decir que hay 785 columnas en cada fila.
 
-Let’s start with the training. We create a function called `mnistTrain` that takes in a neural network and use it for training the MNIST dataset:
+Empecemos con el entrenamiento. Crearemos una función receptora en el struct Network llamada `MnistTrain`, que inicia el entrenamiento con el dataset:
 
 ```go
-func mnistTrain(net *Network) {
-	rand.Seed(time.Now().UTC().UnixNano())
+func (net *Network) MnistTrain() {
+	rand.NewSource(time.Now().UTC().UnixNano())
 	t1 := time.Now()
 
 	for epochs := 0; epochs < 5; epochs++ {
@@ -565,18 +559,18 @@ func mnistTrain(net *Network) {
 				break
 			}
 
-			inputs := make([]float64, net.inputs)
+			inputs := make([]float64, net.Inputs)
 			for i := range inputs {
 				x, _ := strconv.ParseFloat(record[i], 64)
-				inputs[i] = (x / 255.0 * 0.99) + 0.01
+				inputs[i] = (x / 255.0 * 0.999) + 0.001
 			}
 
 			targets := make([]float64, 10)
 			for i := range targets {
-				targets[i] = 0.1
+				targets[i] = 0.001
 			}
 			x, _ := strconv.Atoi(record[0])
-			targets[x] = 0.9
+			targets[x] = 0.999
 
 			net.Train(inputs, targets)
 		}
@@ -587,20 +581,20 @@ func mnistTrain(net *Network) {
 }
 ```
 
-We open up the CSV file and read each record, then process each record. For every record we read in we create an array that represents the inputs and an array that represents the targets.
+Abrimos el archivo CSV y leemos cada fila, luego procesamos cada fila. Para cada fila en el archivo creamos un arreglo que representa las entradas y un arreglo que representa los objetivos.
 
-For the `inputs` array we take each pixel from the record, and convert it to a value between 0.0 and 1.0 with 0.0 meaning a pixel with no value and 1.0 meaning a full pixel.
+Para el arreglo `inputs` tomamos cada pixel de la fila, y lo convertimos a un valor entre 0.0 y 1.0 con 0.0 significando un pixel sin valor y 1.0 significando un pixel completo.
 
-For the `targets` array, each element of the array represents the probability of the index being the target digit. For example, if the target digit is 3, then the 4th element `targets[3]` would have a probability of 0.9 while the rest would have a probability of 0.1.
+Para el arreglo `targets`, cada elemento del arreglo representa la probabilidad del índice de ser el dígito objetivo. Por ejemplo, si el dígito objetivo es 3, entonces el cuarto elemento `targets[3]` tendría una probabilidad de 0.9 mientras que el resto tendría una probabilidad de 0.1.
 
-Once we have the inputs and targets, we call the `Train` function of the network and pass it the inputs and targets.
+Una vez tenemos las entradas y los objetivos, llamamos la función `Train` de la red y le pasamos las entradas y los objetivos.
 
-You might notice that we ran this in ‘epochs’. Basically what we did was to run this multiple times because the more times we run through the training the better trained the neural network will be. However if we over-train it, the network will _overfit_, meaning it will adapt too well with the training data and will ultimately perform badly with data that it hasn’t seen before.
+Es notable que corremos esto en _epochs_. Básicamente lo que hacemos es correr esto múltiples veces porque mientras más veces corramos el entrenamiento, mejor entrenada estará la red neuronal. Sin embargo, si la entrenamos demasiado, la red neuronal se _sobreentrenará_, lo que significa que se adaptará demasiado bien con los datos de entrenamiento y al final tendrá un mal desempeño con datos que no ha visto antes.
 
-Predicting the hand-written images is basically the same thing, except that we call the `Predict` function with only the inputs.
+Predecir las imágenes es básicamente lo mismo, excepto que llamamos la función `Predict` con solo las entradas.
 
 ```go
-func mnistPredict(net *Network) {
+func (net *Network) MnistPredict() {
 	t1 := time.Now()
 	checkFile, _ := os.Open("mnist_dataset/mnist_test.csv")
 	defer checkFile.Close()
@@ -612,18 +606,18 @@ func mnistPredict(net *Network) {
 		if err == io.EOF {
 			break
 		}
-		inputs := make([]float64, net.inputs)
+		inputs := make([]float64, net.Inputs)
 		for i := range inputs {
 			if i == 0 {
 				inputs[i] = 1.0
 			}
 			x, _ := strconv.ParseFloat(record[i], 64)
-			inputs[i] = (x / 255.0 * 0.99) + 0.01
+			inputs[i] = (x / 255.0 * 0.999) + 0.001
 		}
 		outputs := net.Predict(inputs)
 		best := 0
 		highest := 0.0
-		for i := 0; i < net.outputs; i++ {
+		for i := 0; i < net.Outputs; i++ {
 			if outputs.At(i, 0) > highest {
 				best = i
 				highest = outputs.At(i, 0)
@@ -641,48 +635,58 @@ func mnistPredict(net *Network) {
 }
 ```
 
-The results that we get is an array of probabilities. We figure out the element with the highest probability and the digit should be the index of that element. If it is, we count that as a win. The final count of the wins is our final score.
+Los resultados que obtenemos son un arreglo de probabilidades. Determinamos el elemento con la probabilidad más alta y el dígito debería ser el índice de ese elemento. Si es así, lo contamos como un acierto. El conteo final de los aciertos es nuestro puntaje final.
 
-Because we have 10,000 test images, if we manage to detect all of them accurately then we have will 100% accuracy. Let’s look at the `main` function:
+Debido a que tenemos 10000 imágenes de prueba, si logramos detectarlas todas con precisión entonces tendremos un 100% de precisión. Veamos la función `main`:
 
 ```go
 func main() {
 	// 784 inputs - 28 x 28 pixels, each pixel is an input
-	// 200 hidden neurons - an arbitrary number
+	// 100 hidden nodes - an arbitrary number
 	// 10 outputs - digits 0 to 9
 	// 0.1 is the learning rate
-	net := CreateNetwork(784, 200, 10, 0.1)
+	net := network.NewNetwork(784, 200, 10, 0.1)
 
 	mnist := flag.String("mnist", "", "Either train or predict to evaluate neural network")
+	file := flag.String("file", "", "File name of 28 x 28 PNG file to evaluate")
+	invert := flag.Bool("invert", false, "Invert the image before prediction")
 	flag.Parse()
 
 	// train or mass predict to determine the effectiveness of the trained network
 	switch *mnist {
 	case "train":
-		mnistTrain(&net)
-		save(net)
+		net.MnistTrain()
+		net.Save()
 	case "predict":
-		load(&net)
-		mnistPredict(&net)
+		net.Load()
+		net.MnistPredict()
 	default:
 		// don't do anything
+	}
+
+	// predict individual digit images
+	if *file != "" {
+		// print the image out nicely on the terminal
+		utils.PrintImage(utils.GetImage(*file), *invert, *file)
+		// load the neural network from file
+		net.Load()
+		// predict which number it is
+		fmt.Println("prediction:", net.PredictFromImage(*file))
 	}
 }
 ```
 
-This is pretty straightforward, we first create a neural network with 784 neurons in the input layer (each pixel is one input), 200 neurons in the hidden layer and 10 neurons in the output layer, one for each digit.
+Esta función es bastante simple. Primero creamos la red neuronal con 784 neuronas en la capa de entrada (cada pixel es una entrada), 200 neuronas en la capa oculta y 10 neuronas en la capa de salida, una para cada dígito.
 
-Then we train the network with the MNIST training dataset, and the predict the images with the testing dataset. This is what I have when I test it:
+Luego entrenamos la red con el dataset de entrenamiento MNIST, y predecimos las imágenes con el dataset de prueba. Esto es lo que tenemos cuando lo probamos:
 
 ![](imgs/mnist_screenshot.png)
 
-It took 8 mins to train the network with 60,000 images and 5 epochs, and 4.4 secs to test it with 10,000 images. The result is 9,772 images were predicted correctly, which is 97.72% accuracy!
+Nos tomó 8 minutos entrenar la red con 60000 imágenes y 5 epochs, y 4.4 segundos para probarla con 10000 imágenes. El resultado es que 9772 imágenes fueron predichas correctamente, lo que es un 97.72% de precisión. No está nada mal para una red neuronal tan simple.
 
-## Predicting individual files
+## Predicción de archivos individuales
 
-Now that we have tested our network, let’s see how to use it on individual images.
-
-First we get the data from the PNG file. To do this, we create a `dataFromImage` function.
+Ahora que hemos probado nuestra red, veamos cómo usarla en imágenes individuales. Primero obtenemos los datos del archivo PNG. Para hacer esto, creamos una función `dataFromImage`.
 
 ```go
 func dataFromImage(filePath string) (pixels []float64) {
@@ -709,27 +713,27 @@ func dataFromImage(filePath string) (pixels []float64) {
 	}
 	// make a pixel array
 	pixels = make([]float64, len(gray.Pix))
-	// populate the pixel array subtract Pix from 255 because
-	// that's how the MNIST database was trained (in reverse)
+	// populate the pixel array subtract Pix from 255 because that's how
+	// the MNIST database was trained (in reverse)
 	for i := 0; i < len(gray.Pix); i++ {
-		pixels[i] = (float64(255-gray.Pix[i]) / 255.0 * 0.99) + 0.01
+		pixels[i] = (float64(255-gray.Pix[i]) / 255.0 * 0.999) + 0.001
 	}
 	return
 }
 ```
 
-Each pixel in the image represents an value but we can’t use the normal RGBA, instead we need an `image.Gray` . From the `image.Gray` struct we get the `Pix` value and translate it into a `float64` value instead. The MNIST image is white on black, so we need to subtract each pixel value from 255.
+Cada pixel en la imagen representa un valor pero no podemos usar el RGBA normal. En su lugar, necesitamos un `image.Gray`. De este struct `image.Gray` obtenemos el valor `Pix` y los traducimos a un valor de tipo `float64`. La imagen de MNIST es blanca sobre negro, entonces debemos restar cada valor de pixel de 255.
 
-Once we have the pixel array, it’s quite straightforward. We use a `predictFromImage` function that takes in the neural network and predicts the digit from an image file. The results are an array of probabilities where the index is the digit. What we need to do is to find the index and return it.
+Una vez tenemos el arreglo de pixeles, es bastante simple: Usamos la función receptora `PredictFromImage` que predice el dígito desde un archivo de imagen. El resultado es un arreglo de probabilidades donde el índice es el dígito. Lo que debemos hacer es encontrar el index y retornarlo.
 
 ```go
-func predictFromImage(net Network, path string) int {
+func (net *Network) PredictFromImage(path string) int {
 	input := dataFromImage(path)
 	output := net.Predict(input)
 	matrixPrint(output)
 	best := 0
 	highest := 0.0
-	for i := 0; i < net.outputs; i++ {
+	for i := 0; i < net.Outputs; i++ {
 		if output.At(i, 0) > highest {
 			best = i
 			highest = output.At(i, 0)
@@ -739,7 +743,7 @@ func predictFromImage(net Network, path string) int {
 }
 ```
 
-Finally from the `main` function we print the image and predict the digit from the image.
+Finalmente, en la función `main` se imprime la imagen y se predice el dígito de la imagen.
 
 ```go
 func main() {
@@ -747,20 +751,21 @@ func main() {
 	// 100 hidden nodes - an arbitrary number
 	// 10 outputs - digits 0 to 9
 	// 0.1 is the learning rate
-	net := CreateNetwork(784, 200, 10, 0.1)
+	net := network.NewNetwork(784, 200, 10, 0.1)
 
 	mnist := flag.String("mnist", "", "Either train or predict to evaluate neural network")
 	file := flag.String("file", "", "File name of 28 x 28 PNG file to evaluate")
+	invert := flag.Bool("invert", false, "Invert the image before prediction")
 	flag.Parse()
 
 	// train or mass predict to determine the effectiveness of the trained network
 	switch *mnist {
 	case "train":
-		mnistTrain(&net)
-		save(net)
+		net.MnistTrain()
+		net.Save()
 	case "predict":
-		load(&net)
-		mnistPredict(&net)
+		net.Load()
+		net.MnistPredict()
 	default:
 		// don't do anything
 	}
@@ -768,26 +773,26 @@ func main() {
 	// predict individual digit images
 	if *file != "" {
 		// print the image out nicely on the terminal
-		printImage(getImage(*file))
+		utils.PrintImage(utils.GetImage(*file), *invert, *file)
 		// load the neural network from file
-		load(&net)
+		net.Load()
 		// predict which number it is
-		fmt.Println("prediction:", predictFromImage(net, *file))
+		fmt.Println("prediction:", net.PredictFromImage(*file))
 	}
 }
 ```
 
-Assuming the network has already been trained, this is what we get.
+Asumiendo que la red ha sido entrenada previamente, este es el resultado.
 
 ![](imgs/predict_screenshot.png)
 
-And that’s it, we have written a simple 3-layer feedforward neural network from scratch using Go!
+Y eso es todo. Hemos escrito una red neuronal simple de tres capas desde ceros usando Go.
 
-# References
+# Referencias
 
-Here are some of the references for I took when writing this post and the code.
+Aquí hay algunas de las referencias usadas para la construcción de este proyecto.
 
-- Tariq Rashid’s [Make Your Own Neural Network]([Make Your Own Neural Network 1.0, Tariq Rashid, eBook - Amazon.com](https://www.amazon.com/Make-Your-Own-Neural-Network-ebook/dp/B01EER4Z4G)) is a great book to learn the basics of neural networks with its easy style of explanation
-- Michael Nielsen’s [Neural Networks and Deep Learning] ([Neural networks and deep learning](http://neuralnetworksanddeeplearning.com/)) free online book is another amazing resource to learn the intricacies of building neural networks
-- Daniel Whitenack wrote a book on _Machine Learning With Go_ and his post on [Building a Neural Net from Scratch in Go]([Building a Neural Net from Scratch in Go](http://www.datadan.io/building-a-neural-net-from-scratch-in-go/)) is quite educational
-- Ujjwal Karn’s data science blog has a nice [introductory post on neural networks]([A Quick Introduction to Neural Networks – the data science blog](https://ujjwalkarn.me/2016/08/09/quick-intro-neural-networks/))
+- [Make Your Own Neural Network 1.0, Tariq Rashid, eBook - Amazon.com](https://www.amazon.com/Make-Your-Own-Neural-Network-ebook/dp/B01EER4Z4G) de Tariq Rashid es un gran libro para aprender los básicos de las redes neuronales con explicaciones simples.
+- [Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/) de Michael Nielsen es otro gran recurso para aprender los detalles de la construcción de redes neuronales.
+- Daniel Whitenack escribió un libro: _Machine Learning With Go_, y su post sobre la [construcción de una red neuronal en Go](http://www.datadan.io/building-a-neural-net-from-scratch-in-go/) es bastante educativo.
+- El blog de ingeniería de datos de Ujjwal Karn tiene un gran [post introductorio a las redes neuronales](https://ujjwalkarn.me/2016/08/09/quick-intro-neural-networks/).

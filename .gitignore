@@ -13,6 +13,7 @@
 !*.go
 !*.zip
 !*.png
+!*.jpg
 !go.sum
 !go.mod
 
