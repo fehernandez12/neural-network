@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -91,12 +92,14 @@ func (net *Network) Load() {
 	h, err := os.Open("data/hweights.model")
 	defer h.Close()
 	if err == nil {
+		logrus.Info("Loading hidden weights")
 		net.HiddenWeights.Reset()
 		net.HiddenWeights.UnmarshalBinaryFrom(h)
 	}
 	o, err := os.Open("data/oweights.model")
 	defer o.Close()
 	if err == nil {
+		logrus.Info("Loading output weights")
 		net.OutputWeights.Reset()
 		net.OutputWeights.UnmarshalBinaryFrom(o)
 	}
@@ -105,7 +108,7 @@ func (net *Network) Load() {
 // predict a number from an image
 // image should be 28 x 28 PNG file
 func (net *Network) PredictFromImage(path string) int {
-	input := dataFromImage(path)
+	input := DataFromImage(path)
 	output := net.Predict(input)
 	matrixPrint(output)
 	best := 0

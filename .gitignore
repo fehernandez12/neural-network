@@ -9,13 +9,15 @@
 
 # But not these files...
 !/.gitignore
-
+!Dockerfile
+!*.yml
 !*.go
 !*.zip
 !*.png
 !*.jpg
 !go.sum
 !go.mod
+!.air.toml
 
 # !README.md
 !LICENSE

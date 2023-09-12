@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./compose/local/go/Dockerfile
+    ports:
+      - 8080:8080
+    volumes:
+      - .:/usr/src/app
+    image: local_app
+    depends_on:
+      - redis
+    command: go run main.go
+  redis:
+    image: redis:5.0.5-alpine
+    ports:
+      - 6379:6379

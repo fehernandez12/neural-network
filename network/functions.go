@@ -94,7 +94,7 @@ func matrixPrint(X mat.Matrix) {
 }
 
 // get the pixel data from an image
-func dataFromImage(filePath string) (pixels []float64) {
+func DataFromImage(filePath string) (pixels []float64) {
 	// read the file
 	imgFile, err := os.Open(filePath)
 	defer imgFile.Close()

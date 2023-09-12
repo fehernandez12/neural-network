@@ -2,10 +2,13 @@ package utils
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"runtime"
 	"sync"
@@ -76,4 +79,21 @@ func GetImage(filePath string) image.Image {
 		fmt.Println("Cannot decode file:", err)
 	}
 	return img
+}
+
+// GetSHA256Checksum gets the checksum of an uploaded file.
+// This is used to check if the file has been uploaded before
+// and retrieve its result from cache. It is also used to
+// save results in cache.
+func GetSHA256Checksum(filePath string) string {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Cannot read file:", err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		fmt.Println("Cannot copy file:", err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
