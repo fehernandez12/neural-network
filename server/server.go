@@ -100,7 +100,6 @@ func (s *Server) router() http.Handler {
 func (s *Server) defaultRoute(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	if err := r.ParseMultipartForm(2 << 20); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
 		s.logger.Error(http.StatusBadRequest, r.URL.Path, err)
 		sendErrorResponse(w, http.StatusBadRequest, err)
 		return
@@ -114,7 +113,6 @@ func (s *Server) defaultRoute(w http.ResponseWriter, r *http.Request) {
 			if os.IsNotExist(err) {
 				os.Mkdir("./tmp", 0755)
 			} else {
-				w.WriteHeader(http.StatusInternalServerError)
 				s.logger.Error(http.StatusInternalServerError, r.URL.Path, err)
 				sendErrorResponse(w, http.StatusInternalServerError, err)
 				return
@@ -124,7 +122,6 @@ func (s *Server) defaultRoute(w http.ResponseWriter, r *http.Request) {
 		var err error
 		resp, status, err = s.PredictNetwork(r)
 		if err != nil {
-			w.WriteHeader(status)
 			s.logger.Error(status, r.URL.Path, err)
 			sendErrorResponse(w, status, err)
 			return
@@ -133,7 +130,6 @@ func (s *Server) defaultRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := json.Marshal(resp)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		s.logger.Error(http.StatusInternalServerError, r.URL.Path, err)
 		sendErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -301,6 +297,7 @@ func saveFile(h *multipart.FileHeader, name string) {
 
 func sendErrorResponse(w http.ResponseWriter, status int, err error) {
 	response, err := json.Marshal(models.NewErrorResponse(status, err))
+	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
