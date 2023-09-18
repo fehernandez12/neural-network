@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/disintegration/imaging"
 	"github.com/fehernandez12/sonate"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -227,8 +226,8 @@ func makeFile(h *multipart.FileHeader, r *http.Request) (string, error) {
 		return "", err
 	}
 	if invert {
-		inverted := imaging.Invert(img)
-		imaging.Save(inverted, fmt.Sprintf("./tmp/%s_inverted.png", name))
+		inverted := utils.InvertImage(img)
+		utils.Save(inverted, fmt.Sprintf("./tmp/%s_inverted.png", name))
 		fileName = fmt.Sprintf("./tmp/%s_inverted.png", name)
 	}
 	return fileName, nil

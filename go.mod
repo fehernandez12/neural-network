@@ -3,7 +3,6 @@ module gonn
 go 1.20
 
 require (
-	github.com/disintegration/imaging v1.6.2
 	github.com/fehernandez12/sonate v0.0.0-20230816171504-3f64a49fb69f
 	github.com/google/uuid v1.3.1
 	github.com/redis/go-redis/v9 v9.1.0

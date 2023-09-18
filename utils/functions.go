@@ -5,19 +5,80 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"gonn/images"
 	"image"
+	"image/draw"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/disintegration/imaging"
+	"golang.org/x/image/bmp"
+	"golang.org/x/image/tiff"
 )
 
 var maxProcs int64
+
+// EncodeOption sets an optional parameter for the Encode and Save functions.
+type EncodeOption func(*encodeConfig)
+
+type encodeConfig struct {
+	jpegQuality         int
+	gifNumColors        int
+	gifQuantizer        draw.Quantizer
+	gifDrawer           draw.Drawer
+	pngCompressionLevel png.CompressionLevel
+}
+
+var defaultEncodeConfig = encodeConfig{
+	jpegQuality:         95,
+	gifNumColors:        256,
+	gifQuantizer:        nil,
+	gifDrawer:           nil,
+	pngCompressionLevel: png.DefaultCompression,
+}
+
+// Format is an image file format.
+type Format int
+
+// Image file formats.
+const (
+	JPEG Format = iota
+	PNG
+	GIF
+	TIFF
+	BMP
+)
+
+var formatExts = map[string]Format{
+	"jpg":  JPEG,
+	"jpeg": JPEG,
+	"png":  PNG,
+	"gif":  GIF,
+	"tif":  TIFF,
+	"tiff": TIFF,
+	"bmp":  BMP,
+}
+
+type fileSystem interface {
+	Create(string) (io.WriteCloser, error)
+	Open(string) (io.ReadCloser, error)
+}
+
+type localFS struct{}
+
+func (localFS) Create(name string) (io.WriteCloser, error) { return os.Create(name) }
+func (localFS) Open(name string) (io.ReadCloser, error)    { return os.Open(name) }
+
+var fs fileSystem = localFS{}
 
 func SetMaxProcs(value int) {
 	atomic.StoreInt64(&maxProcs, int64(value))
@@ -57,8 +118,8 @@ func PrintImage(img image.Image, invert bool, file string) {
 	var buf bytes.Buffer
 	fmt.Printf("Should invert: %v\n", invert)
 	if invert {
-		inverted := imaging.Invert(img)
-		imaging.Save(inverted, file+"_inverted.png")
+		inverted := InvertImage(img)
+		Save(inverted, file+"_inverted.png")
 		png.Encode(&buf, inverted)
 	} else {
 		png.Encode(&buf, img)
@@ -96,4 +157,92 @@ func GetSHA256Checksum(filePath string) string {
 		fmt.Println("Cannot copy file:", err)
 	}
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func InvertImage(img image.Image) *image.NRGBA {
+	return images.Invert(img)
+}
+
+// FormatFromExtension parses image format from filename extension:
+// "jpg" (or "jpeg"), "png", "gif", "tif" (or "tiff") and "bmp" are supported.
+func FormatFromExtension(ext string) (Format, error) {
+	if f, ok := formatExts[strings.ToLower(strings.TrimPrefix(ext, "."))]; ok {
+		return f, nil
+	}
+	return -1, errors.New("unknown image format: " + ext)
+}
+
+// FormatFromFilename parses image format from filename:
+// "jpg" (or "jpeg"), "png", "gif", "tif" (or "tiff") and "bmp" are supported.
+func FormatFromFilename(filename string) (Format, error) {
+	ext := filepath.Ext(filename)
+	return FormatFromExtension(ext)
+}
+
+// Encode writes the image img to w in the specified format (JPEG, PNG, GIF, TIFF or BMP).
+func Encode(w io.Writer, img image.Image, format Format, opts ...EncodeOption) error {
+	cfg := defaultEncodeConfig
+	for _, option := range opts {
+		option(&cfg)
+	}
+
+	switch format {
+	case JPEG:
+		if nrgba, ok := img.(*image.NRGBA); ok && nrgba.Opaque() {
+			rgba := &image.RGBA{
+				Pix:    nrgba.Pix,
+				Stride: nrgba.Stride,
+				Rect:   nrgba.Rect,
+			}
+			return jpeg.Encode(w, rgba, &jpeg.Options{Quality: cfg.jpegQuality})
+		}
+		return jpeg.Encode(w, img, &jpeg.Options{Quality: cfg.jpegQuality})
+
+	case PNG:
+		encoder := png.Encoder{CompressionLevel: cfg.pngCompressionLevel}
+		return encoder.Encode(w, img)
+
+	case GIF:
+		return gif.Encode(w, img, &gif.Options{
+			NumColors: cfg.gifNumColors,
+			Quantizer: cfg.gifQuantizer,
+			Drawer:    cfg.gifDrawer,
+		})
+
+	case TIFF:
+		return tiff.Encode(w, img, &tiff.Options{Compression: tiff.Deflate, Predictor: true})
+
+	case BMP:
+		return bmp.Encode(w, img)
+	}
+
+	return errors.New("unknown image format")
+}
+
+// Save saves the image to file with the specified filename.
+// The format is determined from the filename extension:
+// "jpg" (or "jpeg"), "png", "gif", "tif" (or "tiff") and "bmp" are supported.
+//
+// Examples:
+//
+//	// Save the image as PNG.
+//	err := imaging.Save(img, "out.png")
+//
+//	// Save the image as JPEG with optional quality parameter set to 80.
+//	err := imaging.Save(img, "out.jpg", imaging.JPEGQuality(80))
+func Save(img image.Image, filename string, opts ...EncodeOption) (err error) {
+	f, err := FormatFromFilename(filename)
+	if err != nil {
+		return err
+	}
+	file, err := fs.Create(filename)
+	if err != nil {
+		return err
+	}
+	err = Encode(file, img, f, opts...)
+	errc := file.Close()
+	if err == nil {
+		err = errc
+	}
+	return err
 }
