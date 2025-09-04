@@ -153,6 +153,23 @@ func getStatusCode(operation string) int {
 
 func (s *Server) TrainNetwork() *models.TrainResponse {
 	start := time.Now()
+	// check if weights are already trained
+	h, err := os.Stat("./data/hweights.model")
+	o, err1 := os.Stat("./data/oweights.model")
+	if (err1 == nil && o.Size() > 0) && (err == nil && h.Size() > 0) {
+		logrus.WithField("step", "skipping training").Info("training network")
+		return &models.TrainResponse{
+			OperationResponse: models.OperationResponse{
+				Operation: "train",
+				ApiResponse: models.ApiResponse{
+					Success: true,
+					Time:    "0s",
+				},
+			},
+			Message: "Weights already trained, skipping training",
+		}
+	}
+	logrus.WithField("step", "starting training").Info("training network")
 	resp := &models.TrainResponse{}
 	resp.Operation = "train"
 	s.network.MnistTrain()

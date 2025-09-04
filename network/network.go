@@ -75,34 +75,39 @@ func (net *Network) Predict(inputData []float64) mat.Matrix {
 }
 
 func (net *Network) Save() {
-	h, err := os.Create("data/hweights.model")
-	defer h.Close()
+	logrus.WithField("step", "saving weights").Info("training network")
+	h, err := os.Create("./data/hweights.model")
+	if err != nil {
+		logrus.Errorf("error creating the weights file: %v", err)
+	}
 	if err == nil {
 		net.HiddenWeights.MarshalBinaryTo(h)
 	}
-	o, err := os.Create("data/oweights.model")
-	defer o.Close()
+	logrus.WithField("path", h.Name()).Info("training network")
+	defer h.Close()
+	o, err := os.Create("./data/oweights.model")
 	if err == nil {
 		net.OutputWeights.MarshalBinaryTo(o)
 	}
+	defer o.Close()
 }
 
 // load a neural network from file
 func (net *Network) Load() {
-	h, err := os.Open("data/hweights.model")
-	defer h.Close()
+	h, err := os.Open("./data/hweights.model")
 	if err == nil {
 		logrus.Info("Loading hidden weights")
 		net.HiddenWeights.Reset()
 		net.HiddenWeights.UnmarshalBinaryFrom(h)
 	}
-	o, err := os.Open("data/oweights.model")
-	defer o.Close()
+	defer h.Close()
+	o, err := os.Open("./data/oweights.model")
 	if err == nil {
 		logrus.Info("Loading output weights")
 		net.OutputWeights.Reset()
 		net.OutputWeights.UnmarshalBinaryFrom(o)
 	}
+	defer o.Close()
 }
 
 // predict a number from an image
