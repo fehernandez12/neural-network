@@ -7,13 +7,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"gonn/images"
 	"image"
 	"image/draw"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"io"
+	"neural-network/images"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -131,13 +131,15 @@ func PrintImage(img image.Image, invert bool, file string) {
 // get the file as an image
 func GetImage(filePath string) image.Image {
 	imgFile, err := os.Open(filePath)
-	defer imgFile.Close()
 	if err != nil {
 		fmt.Println("Cannot read file:", err)
+		return nil
 	}
+	defer imgFile.Close()
 	img, _, err := image.Decode(imgFile)
 	if err != nil {
 		fmt.Println("Cannot decode file:", err)
+		return nil
 	}
 	return img
 }

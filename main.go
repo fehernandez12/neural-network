@@ -1,62 +1,16 @@
 package main
 
 import (
-	"gonn/server"
+	"fmt"
 	"log"
+	"neural-network/server"
 	"os"
-	"os/signal"
-	"syscall"
 )
 
 func main() {
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	stopper := make(chan struct{})
-	go func() {
-		<-done
-		close(stopper)
-	}()
-	srv, err := server.NewServer(":8080")
-	if err != nil {
-		log.Fatalf("error: %v", err)
-	}
-	err = srv.Start(stopper)
-	if err != nil {
-		log.Fatalf("error: %v", err)
+	fmt.Println("Starting the Neural Network server...")
+	if err := server.StartServer(); err != nil {
+		log.Fatalf("Error starting server: %v", err)
+		os.Exit(1)
 	}
 }
-
-// func main() {
-// 	// 784 inputs - 28 x 28 pixels, each pixel is an input
-// 	// 100 hidden nodes - an arbitrary number
-// 	// 10 outputs - digits 0 to 9
-// 	// 0.1 is the learning rate
-// 	net := network.NewNetwork(784, 200, 10, 0.1)
-
-// 	mnist := flag.String("mnist", "", "Either train or predict to evaluate neural network")
-// 	file := flag.String("file", "", "File name of 28 x 28 PNG file to evaluate")
-// 	invert := flag.Bool("invert", false, "Invert the image before prediction")
-// 	flag.Parse()
-
-// 	// train or mass predict to determine the effectiveness of the trained network
-// 	switch *mnist {
-// 	case "train":
-// 		net.MnistTrain()
-// 		net.Save()
-// 	case "predict":
-// 		net.Load()
-// 		net.MnistPredict()
-// 	default:
-// 		// don't do anything
-// 	}
-
-// 	// predict individual digit images
-// 	if *file != "" {
-// 		// print the image out nicely on the terminal
-// 		utils.PrintImage(utils.GetImage(*file), *invert, *file)
-// 		// load the neural network from file
-// 		net.Load()
-// 		// predict which number it is
-// 		fmt.Println("prediction:", net.PredictFromImage(*file))
-// 	}
-// }

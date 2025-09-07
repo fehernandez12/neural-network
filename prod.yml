@@ -5,8 +5,7 @@ services:
   app: &app
     build:
       context: .
-      dockerfile: ./compose/local/go/Dockerfile
-      target: dev
+      dockerfile: ./compose/prod/go/Dockerfile
     ports:
       - 8080:8080
     volumes:

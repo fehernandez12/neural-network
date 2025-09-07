@@ -3,36 +3,36 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"gonn/cache"
-	"gonn/models"
-	"gonn/network"
-	"gonn/utils"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"neural-network/cache"
+	"neural-network/logger"
+	"neural-network/models"
+	"neural-network/network"
+	"neural-network/utils"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
-	"github.com/fehernandez12/sonate"
 	"github.com/google/uuid"
+	"github.com/gorilla/handlers"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"gonum.org/v1/gonum/mat"
-	"gopkg.in/yaml.v3"
 )
 
 type ServerConfig struct {
-	Timeout      int
-	OpenAIAPIKey string
+	Timeout int
+	Addr    string
 }
 
 type Server struct {
 	config  *ServerConfig
-	addr    string
-	logger  *Logger
+	logger  *logger.Logger
 	network *network.Network
 }
 
@@ -40,22 +40,26 @@ func (s *Server) Config() *ServerConfig {
 	return s.config
 }
 
-func (s *Server) Addr() string {
-	return s.addr
-}
-
-func (s *Server) Logger() *Logger {
-	return s.logger
-}
-
 func (s *Server) Network() *network.Network {
 	return s.network
 }
 
-func NewServer(addr string) (*Server, error) {
-	if addr == "" {
-		return nil, errors.New("addr cannot be empty")
+func StartServer() error {
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	stopper := make(chan struct{})
+	go func() {
+		<-done
+		close(stopper)
+	}()
+	server, err := newServer()
+	if err != nil {
+		return err
 	}
+	return server.Start(stopper)
+}
+
+func newServer() (*Server, error) {
 	config, err := readServerConfig()
 	if err != nil {
 		return nil, err
@@ -63,21 +67,26 @@ func NewServer(addr string) (*Server, error) {
 	cacheRep := cache.NewRedisCacheRepository()
 	cache.SetRepository(cacheRep)
 	return &Server{
-		addr:    addr,
 		config:  config,
-		logger:  NewLogger(),
+		logger:  logger.NewLogger(),
 		network: network.NewNetwork(784, 200, 10, 0.1),
 	}, nil
 }
 
 func (s *Server) Start(stop <-chan struct{}) error {
+	corsObj := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.AllowedMethods([]string{"POST", "GET", "OPTIONS", "PUT", "DELETE"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
+	)
+	// load the neural network weights from file
 	s.network.Load()
 	srv := &http.Server{
-		Addr:    s.addr,
-		Handler: s.router(),
+		Addr:    s.config.Addr,
+		Handler: corsObj(s.router()),
 	}
 	go func() {
-		logrus.WithField("addr", s.addr).Info("starting server")
+		s.logger.WithField("addr", s.config.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logrus.Fatalf("listen: %s\n", err)
 		}
@@ -87,68 +96,6 @@ func (s *Server) Start(stop <-chan struct{}) error {
 	defer cancel()
 	logrus.WithField("timeout", s.config.Timeout).Info("shutting down server")
 	return srv.Shutdown(ctx)
-}
-
-func (s *Server) router() http.Handler {
-	router := sonate.NewRouter()
-	// router.Use(middleware.RequestLogger)
-	router.HandleFunc("/", s.defaultRoute).Methods(http.MethodPost)
-	return router
-}
-
-func (s *Server) defaultRoute(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	if err := r.ParseMultipartForm(2 << 20); err != nil {
-		s.logger.Error(http.StatusBadRequest, r.URL.Path, err)
-		sendErrorResponse(w, http.StatusBadRequest, err)
-		return
-	}
-	var resp models.Response
-	switch r.FormValue("operation") {
-	case "train":
-		resp = s.TrainNetwork()
-	case "predict":
-		if _, err := os.Stat("./tmp"); err != nil {
-			if os.IsNotExist(err) {
-				os.Mkdir("./tmp", 0755)
-			} else {
-				s.logger.Error(http.StatusInternalServerError, r.URL.Path, err)
-				sendErrorResponse(w, http.StatusInternalServerError, err)
-				return
-			}
-		}
-		var status int
-		var err error
-		resp, status, err = s.PredictNetwork(r)
-		if err != nil {
-			s.logger.Error(status, r.URL.Path, err)
-			sendErrorResponse(w, status, err)
-			return
-		}
-		os.RemoveAll("./tmp")
-	}
-	response, err := json.Marshal(resp)
-	if err != nil {
-		s.logger.Error(http.StatusInternalServerError, r.URL.Path, err)
-		sendErrorResponse(w, http.StatusInternalServerError, err)
-		return
-	}
-	statusCode := getStatusCode(resp.GetOperation())
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	w.Write(response)
-	s.logger.Info(statusCode, r.URL.Path, start)
-}
-
-func getStatusCode(operation string) int {
-	switch operation {
-	case "train":
-		return http.StatusCreated
-	case "predict":
-		return http.StatusOK
-	default:
-		return http.StatusOK
-	}
 }
 
 func (s *Server) TrainNetwork() *models.TrainResponse {
@@ -327,15 +274,16 @@ func getExtension(filename string) string {
 }
 
 func readServerConfig() (*ServerConfig, error) {
-	yamlFile, err := os.ReadFile("./server/config.yml")
-	if err != nil {
-		return nil, err
-	}
 	config := &ServerConfig{}
-	err = yaml.Unmarshal(yamlFile, &config)
+	timeout, err := strconv.Atoi(os.Getenv("SERVER_TIMEOUT"))
 	if err != nil {
-		return nil, err
+		timeout = 30000
 	}
-	config.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
+	config.Timeout = timeout
+	addr := os.Getenv("SERVER_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	config.Addr = addr
 	return config, nil
 }

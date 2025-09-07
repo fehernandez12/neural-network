@@ -132,7 +132,11 @@ func (net *Network) MnistTrain() {
 	t1 := time.Now()
 
 	for epochs := 0; epochs < 5; epochs++ {
-		testFile, _ := os.Open("mnist_dataset/mnist_train.csv")
+		testFile, err := os.Open("./mnist_dataset/mnist_train.csv")
+		if err != nil {
+			logrus.Errorf("error opening the training file: %v", err)
+			return
+		}
 		r := csv.NewReader(bufio.NewReader(testFile))
 		for {
 			record, err := r.Read()
