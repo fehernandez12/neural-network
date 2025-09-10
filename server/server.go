@@ -64,8 +64,8 @@ func newServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	cacheRep := cache.NewRedisCacheRepository()
-	cache.SetRepository(cacheRep)
+	cacheRep := cache.GetRepositoryInstance()
+	cache.SetCacheRepository(cacheRep)
 	return &Server{
 		config:  config,
 		logger:  logger.NewLogger(),
@@ -98,33 +98,37 @@ func (s *Server) Start(stop <-chan struct{}) error {
 	return srv.Shutdown(ctx)
 }
 
-func (s *Server) TrainNetwork() *models.TrainResponse {
+func (s *Server) TrainNetwork(r *models.TrainRequest) (*models.TrainResponse, error) {
 	start := time.Now()
 	// check if weights are already trained
 	h, err := os.Stat("./data/hweights.model")
 	o, err1 := os.Stat("./data/oweights.model")
-	if (err1 == nil && o.Size() > 0) && (err == nil && h.Size() > 0) {
+	if ((err1 == nil && o.Size() > 0) && (err == nil && h.Size() > 0)) && !r.Force {
 		logrus.WithField("step", "skipping training").Info("training network")
 		return &models.TrainResponse{
 			OperationResponse: models.OperationResponse{
 				Operation: "train",
 				ApiResponse: models.ApiResponse{
 					Success: true,
-					Time:    "0s",
+					Time:    fmt.Sprintf("%v", time.Since(start)),
 				},
 			},
 			Message: "Weights already trained, skipping training",
-		}
+		}, nil
 	}
 	logrus.WithField("step", "starting training").Info("training network")
 	resp := &models.TrainResponse{}
 	resp.Operation = "train"
-	s.network.MnistTrain()
-	s.network.Save()
+	if err := s.network.MnistTrain(r.Epochs); err != nil {
+		return nil, err
+	}
+	if err := s.network.Save(); err != nil {
+		return nil, err
+	}
 	resp.Time = time.Since(start).String()
 	resp.Message = "Training complete"
 	resp.Success = true
-	return resp
+	return resp, nil
 }
 
 func (s *Server) PredictNetwork(r *http.Request) (*models.PredictResponse, int, error) {

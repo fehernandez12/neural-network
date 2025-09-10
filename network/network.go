@@ -74,11 +74,11 @@ func (net *Network) Predict(inputData []float64) mat.Matrix {
 	return finalOutputs
 }
 
-func (net *Network) Save() {
+func (net *Network) Save() error {
 	logrus.WithField("step", "saving weights").Info("training network")
 	h, err := os.Create("./data/hweights.model")
 	if err != nil {
-		logrus.Errorf("error creating the weights file: %v", err)
+		return fmt.Errorf("error creating the weights file: %v", err)
 	}
 	if err == nil {
 		net.HiddenWeights.MarshalBinaryTo(h)
@@ -90,6 +90,7 @@ func (net *Network) Save() {
 		net.OutputWeights.MarshalBinaryTo(o)
 	}
 	defer o.Close()
+	return nil
 }
 
 // load a neural network from file
@@ -127,15 +128,15 @@ func (net *Network) PredictFromImage(path string) int {
 	return best
 }
 
-func (net *Network) MnistTrain() {
+func (net *Network) MnistTrain(ep int) error {
 	rand.NewSource(time.Now().UTC().UnixNano())
 	t1 := time.Now()
 
-	for epochs := 0; epochs < 5; epochs++ {
+	for epochs := 0; epochs < ep; epochs++ {
 		testFile, err := os.Open("./mnist_dataset/mnist_train.csv")
 		if err != nil {
 			logrus.Errorf("error opening the training file: %v", err)
-			return
+			return err
 		}
 		r := csv.NewReader(bufio.NewReader(testFile))
 		for {
@@ -163,6 +164,7 @@ func (net *Network) MnistTrain() {
 	}
 	elapsed := time.Since(t1)
 	fmt.Printf("\nTime taken to train: %s\n", elapsed)
+	return nil
 }
 
 func (net *Network) MnistPredict() {

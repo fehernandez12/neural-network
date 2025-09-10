@@ -8,7 +8,7 @@ type Cache interface {
 
 var impl Cache
 
-func SetRepository(repository Cache) {
+func SetCacheRepository(repository Cache) {
 	impl = repository
 }
 
@@ -22,4 +22,13 @@ func Put(key string, value string) error {
 
 func Delete(key string) error {
 	return impl.Delete(key)
+}
+
+func GetRepositoryInstance() Cache {
+	var cache Cache
+	cache = NewRedisCacheRepository()
+	if err := cache.(*RedisCache).redis.Ping(ctx).Err(); err != nil {
+		cache = NewInMemoryCacheRepository()
+	}
+	return cache
 }

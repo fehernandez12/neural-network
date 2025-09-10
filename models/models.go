@@ -38,6 +38,11 @@ func (r *PredictResponse) GetOperation() string {
 	return r.Operation
 }
 
+type TrainRequest struct {
+	Epochs int  `json:epochs`
+	Force  bool `json:force`
+}
+
 type TrainResponse struct {
 	OperationResponse
 	Message string `json:"message"`
